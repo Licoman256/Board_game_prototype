@@ -1,4 +1,4 @@
-# Game with diagonal movement and readable wall logic, including comments for clarity
+# Game with diagonal movement, readable logic, stay-in-place attack, and clear comments
 
 import keyboard
 import os
@@ -7,21 +7,21 @@ import random
 from dataclasses import dataclass
 from typing import List, Tuple
 
-# Constants for game configuration
+# Game settings
 BOARD_SIZE = 5
 MAX_HEALTH = 5
 ATTACK_DAMAGE = 1
 
-# Mapping movement keys to (row_offset, col_offset)
+# Key bindings for movement; added 'x' for down and 's' for stay-in-place attack
 MOVEMENT_KEYS = {
-    'w': (-1, 0),   # up
-    's': (1, 0),    # down
-    'a': (0, -1),   # left
-    'd': (0, 1),    # right
-    'q': (-1, -1),  # up-left
-    'e': (-1, 1),   # up-right
-    'z': (1, -1),   # down-left
-    'c': (1, 1)     # down-right
+    'w': (-1, 0),    # Up
+    'x': (1, 0),     # Down (was 's')
+    'a': (0, -1),    # Left
+    'd': (0, 1),     # Right
+    'q': (-1, -1),   # Up-left
+    'e': (-1, 1),    # Up-right
+    'z': (1, -1),    # Down-left
+    'c': (1, 1)      # Down-right
 }
 
 @dataclass
@@ -46,35 +46,21 @@ class Game:
         self.generate_walls()
 
     def generate_walls(self):
-        """Generate a fully connected maze and randomly break additional walls to open it up."""
         size = self.board_size
-
-        # Initialize walls: all are present at start
         self.vertical_walls = [[True for _ in range(size - 1)] for _ in range(size)]
         self.horizontal_walls = [[True for _ in range(size)] for _ in range(size - 1)]
-
         visited = [[False for _ in range(size)] for _ in range(size)]
 
         def is_within_bounds(row, col):
             return 0 <= row < size and 0 <= col < size
 
         def generate_maze(row, col):
-            """Recursive DFS to carve out a connected maze."""
             visited[row][col] = True
-            directions = [
-                ("up", -1, 0),
-                ("down", 1, 0),
-                ("left", 0, -1),
-                ("right", 0, 1)
-            ]
+            directions = [("up", -1, 0), ("down", 1, 0), ("left", 0, -1), ("right", 0, 1)]
             random.shuffle(directions)
-
-            for direction, row_offset, col_offset in directions:
-                next_row = row + row_offset
-                next_col = col + col_offset
-
+            for direction, dr, dc in directions:
+                next_row, next_col = row + dr, col + dc
                 if is_within_bounds(next_row, next_col) and not visited[next_row][next_col]:
-                    # Remove wall between current and next cell
                     if direction == "up":
                         self.horizontal_walls[row - 1][col] = False
                     elif direction == "down":
@@ -87,7 +73,7 @@ class Game:
 
         generate_maze(0, 0)
 
-        # Randomly break additional walls to make the board more open
+        # Randomly break some additional walls
         extra_wall_break_chance = 0.25
         for row in range(size):
             for col in range(size - 1):
@@ -105,149 +91,180 @@ class Game:
         return self.players[self.current_turn_index]
 
     def is_straight_move_blocked(self, from_row, from_col, to_row, to_col):
-        """Check for walls blocking a straight (non-diagonal) move."""
         if from_row == to_row:
-            column = min(from_col, to_col)
-            return self.vertical_walls[from_row][column]
+            col = min(from_col, to_col)
+            return self.vertical_walls[from_row][col]
         elif from_col == to_col:
             row = min(from_row, to_row)
             return self.horizontal_walls[row][from_col]
         return True
 
     def is_diagonal_move_blocked(self, from_row, from_col, to_row, to_col):
-        """Check both potential paths for diagonal movement and block if both are blocked."""
-        mid_row_1 = from_row
-        mid_col_1 = to_col
-        mid_row_2 = to_row
-        mid_col_2 = from_col
-
-        path_1_clear = not self.is_straight_move_blocked(from_row, from_col, mid_row_1, mid_col_1) and \
-                       not self.is_straight_move_blocked(mid_row_1, mid_col_1, to_row, to_col)
-        path_2_clear = not self.is_straight_move_blocked(from_row, from_col, mid_row_2, mid_col_2) and \
-                       not self.is_straight_move_blocked(mid_row_2, mid_col_2, to_row, to_col)
-
-        return not (path_1_clear or path_2_clear)
+        mid_1_clear = not self.is_straight_move_blocked(from_row, from_col, from_row, to_col) and \
+                      not self.is_straight_move_blocked(from_row, to_col, to_row, to_col)
+        mid_2_clear = not self.is_straight_move_blocked(from_row, from_col, to_row, from_col) and \
+                      not self.is_straight_move_blocked(to_row, from_col, to_row, to_col)
+        return not (mid_1_clear or mid_2_clear)
 
     def is_move_blocked(self, from_row, from_col, to_row, to_col):
         if abs(from_row - to_row) == 1 and abs(from_col - to_col) == 1:
             return self.is_diagonal_move_blocked(from_row, from_col, to_row, to_col)
         return self.is_straight_move_blocked(from_row, from_col, to_row, to_col)
 
-    def is_valid_move(self, target_row, target_col, from_position):
-        from_row, from_col = from_position
-        if not (0 <= target_row < self.board_size and 0 <= target_col < self.board_size):
+    def is_valid_move(self, to_row, to_col, from_pos):
+        from_row, from_col = from_pos
+        if not (0 <= to_row < self.board_size and 0 <= to_col < self.board_size):
             return False
-        if any(player.position == (target_row, target_col) and player.is_alive() for player in self.players):
+        if any(p.position == (to_row, to_col) and p.is_alive() for p in self.players):
             return False
-        if self.is_move_blocked(from_row, from_col, target_row, target_col):
+        if self.is_move_blocked(from_row, from_col, to_row, to_col):
             return False
         return True
 
     def draw_board(self):
-        """Draw the game board with players and wall indicators."""
         size = self.board_size
         board = [['.' for _ in range(size)] for _ in range(size)]
-        for player in self.players:
-            if player.is_alive():
-                row, col = player.position
-                symbol = player.color.upper() if player == self.get_current_player() else player.color.lower()
+        for p in self.players:
+            if p.is_alive():
+                row, col = p.position
+                symbol = p.color.upper() if p == self.get_current_player() else p.color.lower()
                 board[row][col] = symbol
-
         for row in range(size):
             top_line = ""
             for col in range(size):
                 top_line += "+"
-                if row > 0 and self.horizontal_walls[row - 1][col]:
-                    top_line += "---"
-                else:
-                    top_line += "   "
+                top_line += "---" if row > 0 and self.horizontal_walls[row - 1][col] else "   "
             top_line += "+"
             print(top_line)
-
             middle_line = ""
             for col in range(size):
-                if col > 0 and self.vertical_walls[row][col - 1]:
-                    middle_line += "|"
-                else:
-                    middle_line += " "
+                middle_line += "|" if col > 0 and self.vertical_walls[row][col - 1] else " "
                 middle_line += f" {board[row][col]} "
             middle_line += "|"
             print(middle_line)
-
-        # Draw bottom line of the board
         bottom_line = ""
         for col in range(size):
             bottom_line += "+"
-            if self.horizontal_walls[size - 2][col]:
-                bottom_line += "---"
-            else:
-                bottom_line += "   "
+            bottom_line += "---" if self.horizontal_walls[size - 2][col] else "   "
         bottom_line += "+"
         print(bottom_line)
 
     def display_status(self):
-        for player in self.players:
-            print(f"{player.name}: {player.health} HP at {player.position}")
+        for p in self.players:
+            print(f"{p.name}: {p.health} HP at {p.position}")
+
+    # Game with knockback mechanic when attacked
+    # (Start of code omitted for brevity; see below for modifications)
+
+    # Refactored apply_attacks function for clarity and conciseness
+
+    def apply_attacks(self, attacker: Player, stayed_in_place: bool = False):
+        attacker_row, attacker_col = attacker.position
+        bonus_damage = ATTACK_DAMAGE + 1 if stayed_in_place else ATTACK_DAMAGE
+
+        for defender in self.players:
+            # Skip invalid targets
+            if defender.id == attacker.id or not defender.is_alive():
+                continue
+
+            defender_row, defender_col = defender.position
+            if abs(attacker_row - defender_row) > 1 or abs(attacker_col - defender_col) > 1:
+                continue
+
+            defender.health -= bonus_damage
+
+            delta_row = defender_row - attacker_row
+            delta_col = defender_col - attacker_col
+            new_row = defender_row + delta_row
+            new_col = defender_col + delta_col
+
+            def is_clear_move(r, c):
+                return self.is_valid_move(r, c, (defender_row, defender_col))
+
+            moved = False
+
+            if is_clear_move(new_row, new_col):
+                defender.position = (new_row, new_col)
+                moved = True
+            elif delta_row != 0 and delta_col != 0:
+                # Diagonal attack: try component directions
+                option_row = (defender_row + delta_row, defender_col)
+                option_col = (defender_row, defender_col + delta_col)
+                option_row_valid = is_clear_move(*option_row)
+                option_col_valid = is_clear_move(*option_col)
+
+                if option_row_valid and option_col_valid:
+                    print(f"{attacker.name}, choose knockback for {defender.name}:")
+                    print(f"1) to {option_row}")
+                    print(f"2) to {option_col}")
+                    choice = None
+                    while choice not in ['1', '2']:
+                        choice = input("Enter 1 or 2: ")
+                    defender.position = option_row if choice == '1' else option_col
+                    moved = True
+                elif option_row_valid:
+                    defender.position = option_row
+                    moved = True
+                elif option_col_valid:
+                    defender.position = option_col
+                    moved = True
+
+            if moved:
+                print(f"{defender.name} is pushed to {defender.position}")
+            else:
+                print(f"{defender.name} could not be pushed due to obstacles")
+
+
 
     def move_current_player(self, key: str):
-        """Move the current player in the direction of the key pressed."""
         player = self.get_current_player()
+        if key == 's':
+            self.apply_attacks(player)
+            self.current_turn_index = (self.current_turn_index + 1) % len(self.players)
+            return
         delta_row, delta_col = MOVEMENT_KEYS[key]
-        current_row, current_col = player.position
-        target_row = current_row + delta_row
-        target_col = current_col + delta_col
-        if self.is_valid_move(target_row, target_col, (current_row, current_col)):
-            player.position = (target_row, target_col)
+        cur_row, cur_col = player.position
+        new_row = cur_row + delta_row
+        new_col = cur_col + delta_col
+        if self.is_valid_move(new_row, new_col, (cur_row, cur_col)):
+            player.position = (new_row, new_col)
             self.apply_attacks(player)
             self.current_turn_index = (self.current_turn_index + 1) % len(self.players)
 
-    def apply_attacks(self, attacker: Player):
-        """Apply damage to adjacent enemy players."""
-        attacker_row, attacker_col = attacker.position
-        for defender in self.players:
-            if defender.id != attacker.id and defender.is_alive():
-                defender_row, defender_col = defender.position
-                if abs(attacker_row - defender_row) <= 1 and abs(attacker_col - defender_col) <= 1:
-                    defender.health -= ATTACK_DAMAGE
-
     def is_game_over(self):
-        return sum(1 for player in self.players if player.is_alive()) <= 1
+        return sum(p.is_alive() for p in self.players) <= 1
 
     def run(self):
-        print("Game started. Use W A S D for straight moves, Q Z C E for diagonal.")
+        print("Use W A X D Q E Z C to move, S to stay and attack")
         while not self.is_game_over():
             self.clear_screen()
-            current_player = self.get_current_player()
-            print(f"{current_player.name}'s turn ({current_player.color.upper()})")
+            current = self.get_current_player()
+            print(f"{current.name}'s turn ({current.color.upper()})")
             self.draw_board()
             self.display_status()
-
-            current_row, current_col = current_player.position
-            has_moves = any(
-                self.is_valid_move(current_row + delta_row, current_col + delta_col, (current_row, current_col))
-                for delta_row, delta_col in MOVEMENT_KEYS.values()
+            row, col = current.position
+            can_move = any(
+                self.is_valid_move(row + dr, col + dc, (row, col))
+                for dr, dc in MOVEMENT_KEYS.values()
             )
-
-            if not has_moves:
-                print(f"{current_player.name} has no moves. Skipping turn...")
+            if not can_move:
+                print(f"{current.name} has no moves. Staying and attacking...")
                 time.sleep(1.5)
+                self.apply_attacks(current)
                 self.current_turn_index = (self.current_turn_index + 1) % len(self.players)
                 continue
-
-            print("Choose a direction: W A S D Q E Z C")
+            print("Move with W A X D Q E Z C or press S to stay")
             while True:
                 event = keyboard.read_event()
                 if event.event_type == keyboard.KEY_DOWN:
                     key = event.name.lower()
-                    if key in MOVEMENT_KEYS:
+                    if key in MOVEMENT_KEYS or key == 's':
                         self.move_current_player(key)
                         break
-
         print("Game Over!")
-        for player in self.players:
-            if player.is_alive():
-                print(f"{player.name} wins!")
+        for p in self.players:
+            if p.is_alive():
+                print(f"{p.name} wins!")
 
 if __name__ == "__main__":
-    game = Game()
-    game.run()
+    Game().run()
