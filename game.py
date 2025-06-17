@@ -158,7 +158,9 @@ class Game:
 
     # Refactored apply_attacks function for clarity and conciseness
 
-    def apply_attacks(self, attacker: Player, stayed_in_place: bool = False):
+    # Updated apply_attacks function with knockback distance and random direction resolution
+
+    def apply_attacks(self, attacker: Player, stayed_in_place: bool = False, knockback_distance: int = 2):
         attacker_row, attacker_col = attacker.position
         bonus_damage = ATTACK_DAMAGE + 1 if stayed_in_place else ATTACK_DAMAGE
 
@@ -175,46 +177,41 @@ class Game:
 
             delta_row = defender_row - attacker_row
             delta_col = defender_col - attacker_col
-            new_row = defender_row + delta_row
-            new_col = defender_col + delta_col
 
-            def is_clear_move(r, c):
-                return self.is_valid_move(r, c, (defender_row, defender_col))
+            def is_clear_move(r, c, origin):
+                return self.is_valid_move(r, c, origin)
 
-            moved = False
+            # Knockback over specified distance
+            for _ in range(knockback_distance):
+                current_row, current_col = defender.position
+                new_row = current_row + delta_row
+                new_col = current_col + delta_col
 
-            if is_clear_move(new_row, new_col):
-                defender.position = (new_row, new_col)
-                moved = True
-            elif delta_row != 0 and delta_col != 0:
-                # Diagonal attack: try component directions
-                option_row = (defender_row + delta_row, defender_col)
-                option_col = (defender_row, defender_col + delta_col)
-                option_row_valid = is_clear_move(*option_row)
-                option_col_valid = is_clear_move(*option_col)
+                if is_clear_move(new_row, new_col, (current_row, current_col)):
+                    defender.position = (new_row, new_col)
+                    print(f"{defender.name} is pushed to {defender.position}")
+                    continue
 
-                if option_row_valid and option_col_valid:
-                    print(f"{attacker.name}, choose knockback for {defender.name}:")
-                    print(f"1) to {option_row}")
-                    print(f"2) to {option_col}")
-                    choice = None
-                    while choice not in ['1', '2']:
-                        choice = input("Enter 1 or 2: ")
-                    defender.position = option_row if choice == '1' else option_col
-                    moved = True
-                elif option_row_valid:
-                    defender.position = option_row
-                    moved = True
-                elif option_col_valid:
-                    defender.position = option_col
-                    moved = True
+                # Diagonal fallback resolution
+                if delta_row != 0 and delta_col != 0:
+                    option_row = (current_row + delta_row, current_col)
+                    option_col = (current_row, current_col + delta_col)
+                    options = []
+                    if is_clear_move(*option_row, (current_row, current_col)):
+                        options.append(option_row)
+                    if is_clear_move(*option_col, (current_row, current_col)):
+                        options.append(option_col)
 
-            if moved:
-                print(f"{defender.name} is pushed to {defender.position}")
-            else:
-                print(f"{defender.name} could not be pushed due to obstacles")
+                    if options:
+                        chosen = random.choice(options)
+                        defender.position = chosen
+                        print(f"{defender.name} is pushed to {defender.position} (random choice)")
+                        delta_row = chosen[0] - current_row
+                        delta_col = chosen[1] - current_col
+                        continue
 
-
+                print(f"{defender.name} could not be pushed further due to obstacles")
+                break
 
     def move_current_player(self, key: str):
         player = self.get_current_player()
