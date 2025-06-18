@@ -1,4 +1,4 @@
-# Game with diagonal movement, readable logic, stay-in-place attack, and clear comments
+# Turn-based grid combat game with diagonal movement and knockback logic
 
 import keyboard
 import os
@@ -8,22 +8,24 @@ from dataclasses import dataclass
 from typing import List, Tuple
 
 # Game settings
-BOARD_SIZE = 5
+BOARD_SIZE = 10
 MAX_HEALTH = 5
 ATTACK_DAMAGE = 1
+MAZE_TILE_SIZE = 2
 
-# Key bindings for movement; added 'x' for down and 's' for stay-in-place attack
+# Key bindings for movement and attack
 MOVEMENT_KEYS = {
-    'w': (-1, 0),    # Up
-    'x': (1, 0),     # Down (was 's')
-    'a': (0, -1),    # Left
-    'd': (0, 1),     # Right
-    'q': (-1, -1),   # Up-left
-    'e': (-1, 1),    # Up-right
-    'z': (1, -1),    # Down-left
-    'c': (1, 1)      # Down-right
+    'w': (-1, 0),    # Move up
+    'x': (1, 0),     # Move down
+    'a': (0, -1),    # Move left
+    'd': (0, 1),     # Move right
+    'q': (-1, -1),   # Move diagonally up-left
+    'e': (-1, 1),    # Move diagonally up-right
+    'z': (1, -1),    # Move diagonally down-left
+    'c': (1, 1)      # Move diagonally down-right
 }
 
+# Player data structure
 @dataclass
 class Player:
     id: int
@@ -35,17 +37,20 @@ class Player:
     def is_alive(self):
         return self.health > 0
 
+# Core game logic
 class Game:
     def __init__(self):
+        # Initialize board and players
         self.board_size = BOARD_SIZE
         self.players: List[Player] = [
             Player(1, "Red", 'R', (0, 0)),
-            Player(2, "Blue", 'B', (BOARD_SIZE - 1, BOARD_SIZE - 1)),
+            Player(2, "Blue", 'B', (self.board_size - 1, self.board_size - 1)),
         ]
-        self.current_turn_index = 0
+        self.current_player_index = 0
         self.generate_walls()
 
     def generate_walls(self):
+        # Generate maze-like walls with a guarantee of a connected path
         size = self.board_size
         self.vertical_walls = [[True for _ in range(size - 1)] for _ in range(size)]
         self.horizontal_walls = [[True for _ in range(size)] for _ in range(size - 1)]
@@ -58,8 +63,8 @@ class Game:
             visited[row][col] = True
             directions = [("up", -1, 0), ("down", 1, 0), ("left", 0, -1), ("right", 0, 1)]
             random.shuffle(directions)
-            for direction, dr, dc in directions:
-                next_row, next_col = row + dr, col + dc
+            for direction, delta_row, delta_col in directions:
+                next_row, next_col = row + delta_row, col + delta_col
                 if is_within_bounds(next_row, next_col) and not visited[next_row][next_col]:
                     if direction == "up":
                         self.horizontal_walls[row - 1][col] = False
@@ -73,8 +78,8 @@ class Game:
 
         generate_maze(0, 0)
 
-        # Randomly break some additional walls
-        extra_wall_break_chance = 0.25
+        # Break additional random walls to increase openness
+        extra_wall_break_chance = 0.
         for row in range(size):
             for col in range(size - 1):
                 if self.vertical_walls[row][col] and random.random() < extra_wall_break_chance:
@@ -85,21 +90,25 @@ class Game:
                     self.horizontal_walls[row][col] = False
 
     def clear_screen(self):
+        # Clear terminal screen
         os.system('cls' if os.name == 'nt' else 'clear')
 
     def get_current_player(self) -> Player:
-        return self.players[self.current_turn_index]
+        # Return the player whose turn it is
+        return self.players[self.current_player_index]
 
     def is_straight_move_blocked(self, from_row, from_col, to_row, to_col):
+        # Check for walls in horizontal or vertical movement
         if from_row == to_row:
-            col = min(from_col, to_col)
-            return self.vertical_walls[from_row][col]
+            min_col = min(from_col, to_col)
+            return self.vertical_walls[from_row][min_col]
         elif from_col == to_col:
-            row = min(from_row, to_row)
-            return self.horizontal_walls[row][from_col]
+            min_row = min(from_row, to_row)
+            return self.horizontal_walls[min_row][from_col]
         return True
 
     def is_diagonal_move_blocked(self, from_row, from_col, to_row, to_col):
+        # Determine if diagonal movement is blocked using L-shaped checks
         mid_1_clear = not self.is_straight_move_blocked(from_row, from_col, from_row, to_col) and \
                       not self.is_straight_move_blocked(from_row, to_col, to_row, to_col)
         mid_2_clear = not self.is_straight_move_blocked(from_row, from_col, to_row, from_col) and \
@@ -107,11 +116,13 @@ class Game:
         return not (mid_1_clear or mid_2_clear)
 
     def is_move_blocked(self, from_row, from_col, to_row, to_col):
+        # Wrapper to check whether any move is blocked (straight or diagonal)
         if abs(from_row - to_row) == 1 and abs(from_col - to_col) == 1:
             return self.is_diagonal_move_blocked(from_row, from_col, to_row, to_col)
         return self.is_straight_move_blocked(from_row, from_col, to_row, to_col)
 
     def is_valid_move(self, to_row, to_col, from_pos):
+        # Ensure move is inside the board, not occupied, and not blocked by walls
         from_row, from_col = from_pos
         if not (0 <= to_row < self.board_size and 0 <= to_col < self.board_size):
             return False
@@ -122,6 +133,7 @@ class Game:
         return True
 
     def draw_board(self):
+        # Print the game board with walls and players
         size = self.board_size
         board = [['.' for _ in range(size)] for _ in range(size)]
         for p in self.players:
@@ -150,22 +162,16 @@ class Game:
         print(bottom_line)
 
     def display_status(self):
+        # Display player health and positions
         for p in self.players:
             print(f"{p.name}: {p.health} HP at {p.position}")
 
-    # Game with knockback mechanic when attacked
-    # (Start of code omitted for brevity; see below for modifications)
-
-    # Refactored apply_attacks function for clarity and conciseness
-
-    # Updated apply_attacks function with knockback distance and random direction resolution
-
     def apply_attacks(self, attacker: Player, stayed_in_place: bool = False, knockback_distance: int = 2):
+        # Deal damage and apply knockback to nearby enemies
         attacker_row, attacker_col = attacker.position
         bonus_damage = ATTACK_DAMAGE + 1 if stayed_in_place else ATTACK_DAMAGE
 
         for defender in self.players:
-            # Skip invalid targets
             if defender.id == attacker.id or not defender.is_alive():
                 continue
 
@@ -214,10 +220,11 @@ class Game:
                 break
 
     def move_current_player(self, key: str):
+        # Move the current player or stay and attack
         player = self.get_current_player()
         if key == 's':
             self.apply_attacks(player)
-            self.current_turn_index = (self.current_turn_index + 1) % len(self.players)
+            self.current_player_index = (self.current_player_index + 1) % len(self.players)
             return
         delta_row, delta_col = MOVEMENT_KEYS[key]
         cur_row, cur_col = player.position
@@ -226,12 +233,14 @@ class Game:
         if self.is_valid_move(new_row, new_col, (cur_row, cur_col)):
             player.position = (new_row, new_col)
             self.apply_attacks(player)
-            self.current_turn_index = (self.current_turn_index + 1) % len(self.players)
+            self.current_player_index = (self.current_player_index + 1) % len(self.players)
 
     def is_game_over(self):
+        # Check if only one player remains
         return sum(p.is_alive() for p in self.players) <= 1
 
     def run(self):
+        # Main game loop handling rendering and input
         print("Use W A X D Q E Z C to move, S to stay and attack")
         while not self.is_game_over():
             self.clear_screen()
@@ -248,9 +257,13 @@ class Game:
                 print(f"{current.name} has no moves. Staying and attacking...")
                 time.sleep(1.5)
                 self.apply_attacks(current)
-                self.current_turn_index = (self.current_turn_index + 1) % len(self.players)
+                self.current_player_index = (self.current_player_index + 1) % len(self.players)
                 continue
-            print("Move with W A X D Q E Z C or press S to stay")
+            print("Move with: ")
+            print("Q W E")
+            print("A   D")
+            print("Z X C")
+            print("Stay and deal extra damage and knockback with S")
             while True:
                 event = keyboard.read_event()
                 if event.event_type == keyboard.KEY_DOWN:
