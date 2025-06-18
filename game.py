@@ -9,6 +9,7 @@ from typing import List, Tuple
 
 ### SETTINGS AND CONSTANTS
 BOARD_SIZE = 10
+RANDOM_WALL_BREAK_CHANCE = 0.35
 MAX_HEALTH = 5
 ATTACK_DAMAGE = 1
 MAZE_TILE_SIZE = 2
@@ -77,14 +78,13 @@ class Game:
         generate_maze(0, 0)
 
         # Break additional random walls
-        extra_wall_break_chance = 0.
         for row in range(size):
             for col in range(size - 1):
-                if self.vertical_walls[row][col] and random.random() < extra_wall_break_chance:
+                if self.vertical_walls[row][col] and random.random() < RANDOM_WALL_BREAK_CHANCE:
                     self.vertical_walls[row][col] = False
         for row in range(size - 1):
             for col in range(size):
-                if self.horizontal_walls[row][col] and random.random() < extra_wall_break_chance:
+                if self.horizontal_walls[row][col] and random.random() < RANDOM_WALL_BREAK_CHANCE:
                     self.horizontal_walls[row][col] = False
 
     ### MOVEMENT
