@@ -97,7 +97,7 @@ class Game:
         # Return the player whose turn it is
         return self.players[self.current_player_index]
 
-    def is_straight_move_blocked(self, from_row, from_col, to_row, to_col):
+    def is_cardinal_move_blocked(self, from_row, from_col, to_row, to_col):
         # Check for walls in horizontal or vertical movement
         if from_row == to_row:
             min_col = min(from_col, to_col)
@@ -107,28 +107,28 @@ class Game:
             return self.horizontal_walls[min_row][from_col]
         return True
 
-    def is_diagonal_move_blocked(self, from_row, from_col, to_row, to_col):
+    def is_diagonal_path_blocked(self, from_row, from_col, to_row, to_col):
         # Determine if diagonal movement is blocked using L-shaped checks
-        mid_1_clear = not self.is_straight_move_blocked(from_row, from_col, from_row, to_col) and \
-                      not self.is_straight_move_blocked(from_row, to_col, to_row, to_col)
-        mid_2_clear = not self.is_straight_move_blocked(from_row, from_col, to_row, from_col) and \
-                      not self.is_straight_move_blocked(to_row, from_col, to_row, to_col)
+        mid_1_clear = not self.is_cardinal_move_blocked(from_row, from_col, from_row, to_col) and \
+                      not self.is_cardinal_move_blocked(from_row, to_col, to_row, to_col)
+        mid_2_clear = not self.is_cardinal_move_blocked(from_row, from_col, to_row, from_col) and \
+                      not self.is_cardinal_move_blocked(to_row, from_col, to_row, to_col)
         return not (mid_1_clear or mid_2_clear)
 
-    def is_move_blocked(self, from_row, from_col, to_row, to_col):
+    def is_any_move_blocked(self, from_row, from_col, to_row, to_col):
         # Wrapper to check whether any move is blocked (straight or diagonal)
         if abs(from_row - to_row) == 1 and abs(from_col - to_col) == 1:
-            return self.is_diagonal_move_blocked(from_row, from_col, to_row, to_col)
-        return self.is_straight_move_blocked(from_row, from_col, to_row, to_col)
+            return self.is_diagonal_path_blocked(from_row, from_col, to_row, to_col)
+        return self.is_cardinal_move_blocked(from_row, from_col, to_row, to_col)
 
-    def is_valid_move(self, to_row, to_col, from_pos):
+    def is_valid_destination(self, to_row, to_col, from_pos):
         # Ensure move is inside the board, not occupied, and not blocked by walls
         from_row, from_col = from_pos
         if not (0 <= to_row < self.board_size and 0 <= to_col < self.board_size):
             return False
         if any(p.position == (to_row, to_col) and p.is_alive() for p in self.players):
             return False
-        if self.is_move_blocked(from_row, from_col, to_row, to_col):
+        if self.is_any_move_blocked(from_row, from_col, to_row, to_col):
             return False
         return True
 
@@ -185,7 +185,7 @@ class Game:
             delta_col = defender_col - attacker_col
 
             def is_clear_move(r, c, origin):
-                return self.is_valid_move(r, c, origin)
+                return self.is_valid_destination(r, c, origin)
 
             # Knockback over specified distance
             for _ in range(knockback_distance):
@@ -230,7 +230,7 @@ class Game:
         cur_row, cur_col = player.position
         new_row = cur_row + delta_row
         new_col = cur_col + delta_col
-        if self.is_valid_move(new_row, new_col, (cur_row, cur_col)):
+        if self.is_valid_destination(new_row, new_col, (cur_row, cur_col)):
             player.position = (new_row, new_col)
             self.apply_attacks(player)
             self.current_player_index = (self.current_player_index + 1) % len(self.players)
@@ -250,7 +250,7 @@ class Game:
             self.display_status()
             row, col = current.position
             can_move = any(
-                self.is_valid_move(row + dr, col + dc, (row, col))
+                self.is_valid_destination(row + dr, col + dc, (row, col))
                 for dr, dc in MOVEMENT_KEYS.values()
             )
             if not can_move:
