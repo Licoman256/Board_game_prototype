@@ -15,8 +15,10 @@ STARTING_KNOCKBACK_DISTANCE = 2
 STARTING_KNOCKBACK_RESISTANCE = 0
 STARTING_ATTACK_DAMAGE = 1
 
-#UNUSED
+# UNUSED
 MAZE_TILE_SIZE = 2
+STARTING_ATTACK_RANGE = 1
+STARTING_MOVE_COUNT = 1
 
 MOVEMENT_KEYS = {
     'w': (-1, 0),    # Move up
@@ -161,12 +163,17 @@ class Game:
         for defender in self.players:
             # Get attacker's effective knockback distance
             knockback_distance = max(0, knockback_dealt - defender.knockback_resistance)
-            
+        
             if defender.id == attacker.id or not defender.is_alive():
                 continue
 
             defender_row, defender_col = defender.position
             if abs(attacker_row - defender_row) > 1 or abs(attacker_col - defender_col) > 1:
+                continue
+
+            # Wall collision
+            if self.is_any_move_blocked(attacker_row, attacker_col, defender_row, defender_col):
+                print(f"{attacker.name}'s attack on {defender.name} is blocked by a wall.")
                 continue
 
             defender.health -= damage
