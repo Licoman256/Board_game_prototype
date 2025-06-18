@@ -7,13 +7,12 @@ import random
 from dataclasses import dataclass
 from typing import List, Tuple
 
-# Game settings
+### SETTINGS AND CONSTANTS
 BOARD_SIZE = 10
 MAX_HEALTH = 5
 ATTACK_DAMAGE = 1
 MAZE_TILE_SIZE = 2
 
-# Key bindings for movement and attack
 MOVEMENT_KEYS = {
     'w': (-1, 0),    # Move up
     'x': (1, 0),     # Move down
@@ -25,7 +24,7 @@ MOVEMENT_KEYS = {
     'c': (1, 1)      # Move diagonally down-right
 }
 
-# Player data structure
+### INITIAL
 @dataclass
 class Player:
     id: int
@@ -37,7 +36,6 @@ class Player:
     def is_alive(self):
         return self.health > 0
 
-# Core game logic
 class Game:
     def __init__(self):
         # Initialize board and players
@@ -78,7 +76,7 @@ class Game:
 
         generate_maze(0, 0)
 
-        # Break additional random walls to increase openness
+        # Break additional random walls
         extra_wall_break_chance = 0.
         for row in range(size):
             for col in range(size - 1):
@@ -89,13 +87,23 @@ class Game:
                 if self.horizontal_walls[row][col] and random.random() < extra_wall_break_chance:
                     self.horizontal_walls[row][col] = False
 
-    def clear_screen(self):
-        # Clear terminal screen
-        os.system('cls' if os.name == 'nt' else 'clear')
+    ### MOVEMENT
 
-    def get_current_player(self) -> Player:
-        # Return the player whose turn it is
-        return self.players[self.current_player_index]
+    def move_current_player(self, key: str):
+        # Move the current player or stay and attack
+        player = self.get_current_player()
+        if key == 's':
+            self.apply_attacks(player)
+            self.current_player_index = (self.current_player_index + 1) % len(self.players)
+            return
+        delta_row, delta_col = MOVEMENT_KEYS[key]
+        cur_row, cur_col = player.position
+        new_row = cur_row + delta_row
+        new_col = cur_col + delta_col
+        if self.is_valid_destination(new_row, new_col, (cur_row, cur_col)):
+            player.position = (new_row, new_col)
+            self.apply_attacks(player)
+            self.current_player_index = (self.current_player_index + 1) % len(self.players)
 
     def is_cardinal_move_blocked(self, from_row, from_col, to_row, to_col):
         # Check for walls in horizontal or vertical movement
@@ -132,39 +140,7 @@ class Game:
             return False
         return True
 
-    def draw_board(self):
-        # Print the game board with walls and players
-        size = self.board_size
-        board = [['.' for _ in range(size)] for _ in range(size)]
-        for p in self.players:
-            if p.is_alive():
-                row, col = p.position
-                symbol = p.color.upper() if p == self.get_current_player() else p.color.lower()
-                board[row][col] = symbol
-        for row in range(size):
-            top_line = ""
-            for col in range(size):
-                top_line += "+"
-                top_line += "---" if row > 0 and self.horizontal_walls[row - 1][col] else "   "
-            top_line += "+"
-            print(top_line)
-            middle_line = ""
-            for col in range(size):
-                middle_line += "|" if col > 0 and self.vertical_walls[row][col - 1] else " "
-                middle_line += f" {board[row][col]} "
-            middle_line += "|"
-            print(middle_line)
-        bottom_line = ""
-        for col in range(size):
-            bottom_line += "+"
-            bottom_line += "---" if self.horizontal_walls[size - 2][col] else "   "
-        bottom_line += "+"
-        print(bottom_line)
-
-    def display_status(self):
-        # Display player health and positions
-        for p in self.players:
-            print(f"{p.name}: {p.health} HP at {p.position}")
+    ### PLAYER INTERACTIONS
 
     def apply_attacks(self, attacker: Player, stayed_in_place: bool = False, knockback_distance: int = 2):
         # Deal damage and apply knockback to nearby enemies
@@ -219,25 +195,57 @@ class Game:
                 print(f"{defender.name} could not be pushed further due to obstacles")
                 break
 
-    def move_current_player(self, key: str):
-        # Move the current player or stay and attack
-        player = self.get_current_player()
-        if key == 's':
-            self.apply_attacks(player)
-            self.current_player_index = (self.current_player_index + 1) % len(self.players)
-            return
-        delta_row, delta_col = MOVEMENT_KEYS[key]
-        cur_row, cur_col = player.position
-        new_row = cur_row + delta_row
-        new_col = cur_col + delta_col
-        if self.is_valid_destination(new_row, new_col, (cur_row, cur_col)):
-            player.position = (new_row, new_col)
-            self.apply_attacks(player)
-            self.current_player_index = (self.current_player_index + 1) % len(self.players)
+    ### FORMATTING
+
+    def draw_board(self):
+        # Print the game board with walls and players
+        size = self.board_size
+        board = [['.' for _ in range(size)] for _ in range(size)]
+        for p in self.players:
+            if p.is_alive():
+                row, col = p.position
+                symbol = p.color.upper() if p == self.get_current_player() else p.color.lower()
+                board[row][col] = symbol
+        for row in range(size):
+            top_line = ""
+            for col in range(size):
+                top_line += "+"
+                top_line += "---" if row > 0 and self.horizontal_walls[row - 1][col] else "   "
+            top_line += "+"
+            print(top_line)
+            middle_line = ""
+            for col in range(size):
+                middle_line += "|" if col > 0 and self.vertical_walls[row][col - 1] else " "
+                middle_line += f" {board[row][col]} "
+            middle_line += "|"
+            print(middle_line)
+        bottom_line = ""
+        for col in range(size):
+            bottom_line += "+"
+            bottom_line += "---" if self.horizontal_walls[size - 2][col] else "   "
+        bottom_line += "+"
+        print(bottom_line)
+
+    def clear_screen(self):
+        # Clear terminal screen
+        os.system('cls' if os.name == 'nt' else 'clear')
+
+    def display_status(self):
+        # Display player health and positions
+        for p in self.players:
+            print(f"{p.name}: {p.health} HP at {p.position}")
+
+    ### UTILS
+
+    def get_current_player(self) -> Player:
+        # Return the player whose turn it is
+        return self.players[self.current_player_index]
 
     def is_game_over(self):
         # Check if only one player remains
         return sum(p.is_alive() for p in self.players) <= 1
+    
+    ### MAIN LOOP
 
     def run(self):
         # Main game loop handling rendering and input
