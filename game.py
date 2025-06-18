@@ -1,5 +1,3 @@
-# Turn-based grid combat game with diagonal movement and knockback logic
-
 import keyboard
 import os
 import time
@@ -8,10 +6,16 @@ from dataclasses import dataclass
 from typing import List, Tuple
 
 ### SETTINGS AND CONSTANTS
+# BOARD
 BOARD_SIZE = 10
 RANDOM_WALL_BREAK_CHANCE = 0.35
-MAX_HEALTH = 5
-ATTACK_DAMAGE = 1
+#PLAYERS
+STARTING_MAX_HEALTH = 5
+STARTING_KNOCKBACK_DISTANCE = 2
+STARTING_KNOCKBACK_RESISTANCE = 1
+STARTING_ATTACK_DAMAGE = 1
+
+#UNUSED
 MAZE_TILE_SIZE = 2
 
 MOVEMENT_KEYS = {
@@ -32,10 +36,15 @@ class Player:
     name: str
     color: str
     position: Tuple[int, int]
-    health: int = MAX_HEALTH
+    max_health: int = STARTING_MAX_HEALTH
+    health: int = STARTING_MAX_HEALTH
+    damage: int = STARTING_ATTACK_DAMAGE
+    knockback_strength: int = STARTING_KNOCKBACK_DISTANCE
+    knockback_resistance: int = STARTING_KNOCKBACK_RESISTANCE
 
     def is_alive(self):
         return self.health > 0
+
 
 class Game:
     def __init__(self):
@@ -93,7 +102,7 @@ class Game:
         # Move the current player or stay and attack
         player = self.get_current_player()
         if key == 's':
-            self.apply_attacks(player)
+            self.apply_attacks(player, moved = False)
             self.current_player_index = (self.current_player_index + 1) % len(self.players)
             return
         delta_row, delta_col = MOVEMENT_KEYS[key]
@@ -102,7 +111,7 @@ class Game:
         new_col = cur_col + delta_col
         if self.is_valid_destination(new_row, new_col, (cur_row, cur_col)):
             player.position = (new_row, new_col)
-            self.apply_attacks(player)
+            self.apply_attacks(player, moved = True)
             self.current_player_index = (self.current_player_index + 1) % len(self.players)
 
     def is_cardinal_move_blocked(self, from_row, from_col, to_row, to_col):
@@ -142,12 +151,17 @@ class Game:
 
     ### PLAYER INTERACTIONS
 
-    def apply_attacks(self, attacker: Player, stayed_in_place: bool = False, knockback_distance: int = 2):
+    def apply_attacks(self, attacker: Player, moved: bool = True):
+        damage = attacker.damage if moved else attacker.damage * 2
+        knockback_dealt = attacker.knockback_strength if moved else attacker.knockback_strength * 2
+
         # Deal damage and apply knockback to nearby enemies
         attacker_row, attacker_col = attacker.position
-        bonus_damage = ATTACK_DAMAGE + 1 if stayed_in_place else ATTACK_DAMAGE
 
         for defender in self.players:
+            # Get attacker's effective knockback distance
+            knockback_distance = max(0, knockback_dealt - defender.knockback_resistance)
+            
             if defender.id == attacker.id or not defender.is_alive():
                 continue
 
@@ -155,7 +169,7 @@ class Game:
             if abs(attacker_row - defender_row) > 1 or abs(attacker_col - defender_col) > 1:
                 continue
 
-            defender.health -= bonus_damage
+            defender.health -= damage
 
             delta_row = defender_row - attacker_row
             delta_col = defender_col - attacker_col
@@ -231,9 +245,14 @@ class Game:
         os.system('cls' if os.name == 'nt' else 'clear')
 
     def display_status(self):
-        # Display player health and positions
-        for p in self.players:
-            print(f"{p.name}: {p.health} HP at {p.position}")
+        for player in self.players:
+            print(f"--- {player.name} ---")
+            print(f"Health: {player.health} / {player.max_health}")
+            print(f"Damage: {player.damage}")
+            print(f"Knockback Strength: {player.knockback_strength}")
+            print(f"Knockback Resistance: {player.knockback_resistance}")
+            print(f"Position: {player.position}")
+            print()
 
     ### UTILS
 
@@ -264,7 +283,7 @@ class Game:
             if not can_move:
                 print(f"{current.name} has no moves. Staying and attacking...")
                 time.sleep(1.5)
-                self.apply_attacks(current)
+                self.apply_attacks(current, moved = False)
                 self.current_player_index = (self.current_player_index + 1) % len(self.players)
                 continue
             print("Move with: ")
