@@ -9,6 +9,8 @@ from typing import List, Tuple
 # BOARD
 BOARD_SIZE = 10
 RANDOM_WALL_BREAK_CHANCE = 0.35
+GOLD_PICKUPS_AMOUNT = 10
+GOLD_ICON = "💰"
 #PLAYERS
 STARTING_MAX_HEALTH = 5
 STARTING_KNOCKBACK_DISTANCE = 2
@@ -63,13 +65,26 @@ class Player:
 
 class Game:
     def __init__(self):
-        # Initialize board and players
-        self.board_size = BOARD_SIZE
+        # players
         self.players = []
         for i in range(len(PLAYER_STARTING_STATS)):
             self.players.append(Player(i, PLAYER_STARTING_STATS[i]["name"], PLAYER_STARTING_STATS[i]["start"], PLAYER_STARTING_STATS[i]["icon"]))
         self.current_player_index = 0
+
+        # board
+        self.board_size = BOARD_SIZE
+        self.gold_positions = []
+        self.place_random_gold(GOLD_PICKUPS_AMOUNT)
+
         self.generate_walls()
+
+    def place_random_gold(self, count):
+        empty_tiles = [
+            (r, c) for r in range(self.board_size) for c in range(self.board_size)
+            if all(p.position != (r, c) for p in self.players)
+        ]
+        self.gold_positions = random.sample(empty_tiles, min(count, len(empty_tiles)))
+
 
     def generate_walls(self):
         # Generate maze-like walls with a guarantee of a connected path
@@ -127,6 +142,13 @@ class Game:
             player.position = (new_row, new_col)
             self.apply_attacks(player, moved = True)
             self.current_player_index = (self.current_player_index + 1) % len(self.players)
+        
+        if player.position in self.gold_positions:
+            self.gold_positions.remove(player.position)
+
+            stat_to_upgrade = random.choice(['max_health', 'damage', 'knockback_strength', 'knockback_resistance'])
+            self.upgrade_stat(player, stat_to_upgrade)
+
 
     def is_cardinal_move_blocked(self, from_row, from_col, to_row, to_col):
         # Check for walls in horizontal or vertical movement
@@ -228,16 +250,39 @@ class Game:
                 print(f"{defender.name} could not be pushed further due to obstacles")
                 break
 
+    def upgrade_stat(self, player, stat_to_upgrade):
+        print("Upgrading " + stat_to_upgrade)
+        if stat_to_upgrade == 'max_health':
+            player.max_health *= 2
+            player.health *= 2
+        elif stat_to_upgrade == 'damage':
+            player.damage *= 2
+        elif stat_to_upgrade == 'knockback_strength':
+            player.knockback_strength *= 2
+        elif stat_to_upgrade == 'knockback_resistance':
+            if player.knockback_resistance > 0:
+                player.knockback_resistance *= 2
+            else:
+                player.knockback_resistance = 1
+
+                
     ### FORMATTING
 
     def draw_board(self):
         # Print the game board with walls and players
         size = self.board_size
         board = [[' ◻️' for _ in range(size)] for _ in range(size)]
+
+        # objects
+        for row, col in self.gold_positions:
+            board[row][col] = GOLD_ICON
+
         for player in self.players:
             if player.is_alive():
                 row, col = player.position
                 board[row][col] = player.icon
+
+        # main board
         for row in range(size):
             top_line = ""
             for col in range(size):
@@ -287,7 +332,7 @@ class Game:
         # Main game loop handling rendering and input
         print("Use W A X D Q E Z C to move, S to stay and attack")
         while not self.is_game_over():
-            self.clear_screen()
+            #self.clear_screen()
             current = self.get_current_player()
             print(current.icon * BOARD_SIZE)
             self.draw_board()
@@ -308,6 +353,7 @@ class Game:
             print("A   D")
             print("Z X C")
             print("Stay and deal extra damage and knockback with S")
+            print()
             while True:
                 event = keyboard.read_event()
                 if event.event_type == keyboard.KEY_DOWN:
