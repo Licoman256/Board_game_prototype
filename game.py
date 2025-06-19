@@ -11,11 +11,16 @@ BOARD_SIZE = 10
 RANDOM_WALL_BREAK_CHANCE = 0.35
 GOLD_PICKUPS_AMOUNT = 10
 GOLD_ICON = "💰"
-#PLAYERS
+# PLAYERS
 STARTING_MAX_HEALTH = 5
 STARTING_KNOCKBACK_DISTANCE = 2
 STARTING_KNOCKBACK_RESISTANCE = 0
 STARTING_ATTACK_DAMAGE = 1
+DEFAULT_MOVES_PER_TURN = 3
+# GOLD SYSTEM
+DEFAULT_GOLD_FROM_PICKUP = 4
+DEFAULT_GOLD_PER_TURN = 1
+
 
 PLAYER_STARTING_STATS = [
     {
@@ -35,6 +40,7 @@ MAZE_TILE_SIZE = 2
 STARTING_ATTACK_RANGE = 1
 STARTING_MOVE_COUNT = 1
 
+SHOP_KEY = 's'
 MOVEMENT_KEYS = {
     'w': (-1, 0),    # Move up
     'x': (1, 0),     # Move down
@@ -58,9 +64,16 @@ class Player:
     damage: int = STARTING_ATTACK_DAMAGE
     knockback_strength: int = STARTING_KNOCKBACK_DISTANCE
     knockback_resistance: int = STARTING_KNOCKBACK_RESISTANCE
+    gold: int = 0
+    gold_per_turn: int = DEFAULT_GOLD_PER_TURN
+    gold_from_pickup: int = DEFAULT_GOLD_FROM_PICKUP
+
+    total_moves: int = DEFAULT_MOVES_PER_TURN
+    moves_used: int = 0
 
     def is_alive(self):
         return self.health > 0
+
 
 
 class Game:
@@ -129,25 +142,26 @@ class Game:
 
     def move_current_player(self, key: str):
         # Move the current player or stay and attack
+        # returns True if movement successful, False if failed
         player = self.get_current_player()
-        if key == 's':
-            self.apply_attacks(player, moved = False)
-            self.current_player_index = (self.current_player_index + 1) % len(self.players)
-            return
         delta_row, delta_col = MOVEMENT_KEYS[key]
         cur_row, cur_col = player.position
         new_row = cur_row + delta_row
         new_col = cur_col + delta_col
-        if self.is_valid_destination(new_row, new_col, (cur_row, cur_col)):
-            player.position = (new_row, new_col)
-            self.apply_attacks(player, moved = True)
-            self.current_player_index = (self.current_player_index + 1) % len(self.players)
+
+        # move failed
+        if not self.is_valid_destination(new_row, new_col, (cur_row, cur_col)):
+            return False
         
+        player.position = (new_row, new_col)
+        
+        # pickup gold
         if player.position in self.gold_positions:
+            player.gold += player.gold_from_pickup
             self.gold_positions.remove(player.position)
 
-            stat_to_upgrade = random.choice(['max_health', 'damage', 'knockback_strength', 'knockback_resistance'])
-            self.upgrade_stat(player, stat_to_upgrade)
+        return True
+        
 
 
     def is_cardinal_move_blocked(self, from_row, from_col, to_row, to_col):
@@ -186,6 +200,25 @@ class Game:
         return True
 
     ### PLAYER INTERACTIONS
+
+    def player_turn(self, current_player, key):
+        # returns turn_over, moved
+
+        # invalid key
+        if key not in MOVEMENT_KEYS and key != SHOP_KEY:
+            return False, False
+
+        if key == SHOP_KEY:
+            # shop here
+            return True, current_player.moves_used
+        
+        if self.move_current_player(key):
+            current_player.moves_used += 1
+
+        if current_player.moves_used >= current_player.total_moves:
+            return True, current_player.moves_used
+        else:
+            return False, False
 
     def apply_attacks(self, attacker: Player, moved: bool = True):
         damage = attacker.damage if moved else attacker.damage * 2
@@ -314,6 +347,7 @@ class Game:
             print(f"Knockback Strength: {player.knockback_strength}")
             print(f"Knockback Resistance: {player.knockback_resistance}")
             print(f"Position: {player.position}")
+            print(f"Gold: {player.gold}")
             print()
 
     ### UTILS
@@ -330,41 +364,55 @@ class Game:
 
     def run(self):
         # Main game loop handling rendering and input
-        print("Use W A X D Q E Z C to move, S to stay and attack")
         while not self.is_game_over():
-            #self.clear_screen()
-            current = self.get_current_player()
-            print(current.icon * BOARD_SIZE)
-            self.draw_board()
-            self.display_status()
-            row, col = current.position
+            current_player = self.get_current_player()
+            row, col = current_player.position
             can_move = any(
                 self.is_valid_destination(row + dr, col + dc, (row, col))
                 for dr, dc in MOVEMENT_KEYS.values()
             )
             if not can_move:
-                print(f"{current.name} has no moves. Staying and attacking...")
+                print(f"{current_player.name} has no moves. Staying and attacking...")
                 time.sleep(1.5)
-                self.apply_attacks(current, moved = False)
+                self.apply_attacks(current_player, moved = False)
                 self.current_player_index = (self.current_player_index + 1) % len(self.players)
                 continue
-            print("Move with: ")
-            print("Q W E")
-            print("A   D")
-            print("Z X C")
-            print("Stay and deal extra damage and knockback with S")
-            print()
-            while True:
+
+            turn_over = False
+            moved = True
+            while not turn_over:
+                self.render_all(current_player)
                 event = keyboard.read_event()
                 if event.event_type == keyboard.KEY_DOWN:
                     key = event.name.lower()
-                    if key in MOVEMENT_KEYS or key == 's':
-                        self.move_current_player(key)
-                        break
+                    if key in MOVEMENT_KEYS or key == SHOP_KEY:
+                        turn_over, moved = self.player_turn(current_player, key)
+            self.player_end_turn(current_player, moved)
+
         print("Game Over!")
         for p in self.players:
             if p.is_alive():
                 print(f"{p.name} wins!")
+
+    def render_all(self, current_player):
+        self.clear_screen()
+        print(current_player.icon * BOARD_SIZE)
+        self.draw_board()
+        self.display_status()
+            
+        print("Move with: ")
+        print("Q W E")
+        print("A   D")
+        print("Z X C")
+        print("Stay and deal extra damage and knockback with S.")
+        print()
+
+    def player_end_turn(self, current_player, moved):
+        self.apply_attacks(current_player, moved = moved)
+        current_player.gold += current_player.gold_per_turn
+        current_player.moves_used = 0
+
+        self.current_player_index = (self.current_player_index + 1) % len(self.players)
 
 if __name__ == "__main__":
     Game().run()
