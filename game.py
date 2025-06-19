@@ -14,10 +14,19 @@ STARTING_MAX_HEALTH = 5
 STARTING_KNOCKBACK_DISTANCE = 2
 STARTING_KNOCKBACK_RESISTANCE = 0
 STARTING_ATTACK_DAMAGE = 1
-PLAYER_COUNT = 2
-PLAYER_ICONS = ["🐲", "🦊"]
-PLAYER_NAMES = ["Dragon", "Human"]
-PLAYER_STARTING_POSITIONS = [(0,0), (BOARD_SIZE - 1, BOARD_SIZE - 1)]
+
+PLAYER_STARTING_STATS = [
+    {
+        "name": "Dragon",
+        "icon": "🐲",
+        "start": (0, 0)
+    },
+    {
+        "name": "Fox", 
+        "icon": "🦊", 
+        "start": (BOARD_SIZE - 1, BOARD_SIZE - 1)
+    },
+]
 
 # UNUSED
 MAZE_TILE_SIZE = 2
@@ -57,8 +66,8 @@ class Game:
         # Initialize board and players
         self.board_size = BOARD_SIZE
         self.players = []
-        for i in range(PLAYER_COUNT):
-            self.players.append(Player(i, PLAYER_NAMES[i], PLAYER_STARTING_POSITIONS[i], PLAYER_ICONS[i]))
+        for i in range(len(PLAYER_STARTING_STATS)):
+            self.players.append(Player(i, PLAYER_STARTING_STATS[i]["name"], PLAYER_STARTING_STATS[i]["start"], PLAYER_STARTING_STATS[i]["icon"]))
         self.current_player_index = 0
         self.generate_walls()
 
