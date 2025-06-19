@@ -14,6 +14,10 @@ STARTING_MAX_HEALTH = 5
 STARTING_KNOCKBACK_DISTANCE = 2
 STARTING_KNOCKBACK_RESISTANCE = 0
 STARTING_ATTACK_DAMAGE = 1
+PLAYER_COUNT = 2
+PLAYER_ICONS = ["🐲", "🦊"]
+PLAYER_NAMES = ["Dragon", "Human"]
+PLAYER_STARTING_POSITIONS = [(0,0), (BOARD_SIZE - 1, BOARD_SIZE - 1)]
 
 # UNUSED
 MAZE_TILE_SIZE = 2
@@ -36,8 +40,8 @@ MOVEMENT_KEYS = {
 class Player:
     id: int
     name: str
-    color: str
     position: Tuple[int, int]
+    icon: str
     max_health: int = STARTING_MAX_HEALTH
     health: int = STARTING_MAX_HEALTH
     damage: int = STARTING_ATTACK_DAMAGE
@@ -52,10 +56,9 @@ class Game:
     def __init__(self):
         # Initialize board and players
         self.board_size = BOARD_SIZE
-        self.players: List[Player] = [
-            Player(1, "Red", 'R', (0, 0)),
-            Player(2, "Blue", 'B', (self.board_size - 1, self.board_size - 1)),
-        ]
+        self.players = []
+        for i in range(PLAYER_COUNT):
+            self.players.append(Player(i, PLAYER_NAMES[i], PLAYER_STARTING_POSITIONS[i], PLAYER_ICONS[i]))
         self.current_player_index = 0
         self.generate_walls()
 
@@ -221,12 +224,11 @@ class Game:
     def draw_board(self):
         # Print the game board with walls and players
         size = self.board_size
-        board = [['.' for _ in range(size)] for _ in range(size)]
-        for p in self.players:
-            if p.is_alive():
-                row, col = p.position
-                symbol = p.color.upper() if p == self.get_current_player() else p.color.lower()
-                board[row][col] = symbol
+        board = [[' ◻️' for _ in range(size)] for _ in range(size)]
+        for player in self.players:
+            if player.is_alive():
+                row, col = player.position
+                board[row][col] = player.icon
         for row in range(size):
             top_line = ""
             for col in range(size):
@@ -236,9 +238,8 @@ class Game:
             print(top_line)
             middle_line = ""
             for col in range(size):
-                middle_line += "|" if col > 0 and self.vertical_walls[row][col - 1] else " "
-                middle_line += f" {board[row][col]} "
-            middle_line += "|"
+                middle_line += "┊" if col > 0 and self.vertical_walls[row][col - 1] else " "
+                middle_line += f"{board[row][col]} "
             print(middle_line)
         bottom_line = ""
         for col in range(size):
@@ -279,7 +280,7 @@ class Game:
         while not self.is_game_over():
             self.clear_screen()
             current = self.get_current_player()
-            print(f"{current.name}'s turn ({current.color.upper()})")
+            print(current.icon * BOARD_SIZE)
             self.draw_board()
             self.display_status()
             row, col = current.position
