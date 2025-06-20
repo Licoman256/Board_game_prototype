@@ -2,7 +2,7 @@ import keyboard
 import os
 import time
 import random
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import List, Tuple
 
 ### SETTINGS AND CONSTANTS
@@ -71,6 +71,13 @@ class Player:
     total_moves: int = DEFAULT_MOVES_PER_TURN
     moves_used: int = 0
 
+    upgrades_purchased: list = field(default_factory=lambda: [
+        ['max_health', 0],
+        ['damage', 0],
+        ['knockback_strength', 0],
+        ['knockback_resistance', 0]
+    ])
+    
     def is_alive(self):
         return self.health > 0
 
@@ -202,23 +209,54 @@ class Game:
     ### PLAYER INTERACTIONS
 
     def player_turn(self, current_player, key):
-        # returns turn_over, moved
+        # returns turn_over, moved, should open shop
 
         # invalid key
         if key not in MOVEMENT_KEYS and key != SHOP_KEY:
-            return False, False
+            return False, False, False
 
         if key == SHOP_KEY:
-            # shop here
-            return True, current_player.moves_used
+            return True, current_player.moves_used, True
         
         if self.move_current_player(key):
             current_player.moves_used += 1
 
         if current_player.moves_used >= current_player.total_moves:
-            return True, current_player.moves_used
+            return True, current_player.moves_used, False
         else:
-            return False, False
+            return False, False, False
+
+    def open_shop(self, player):
+        while True:
+            print(f"\n--- {player.name}'s Shop ---")
+            print(f"Gold: {player.gold}")
+            print("Available upgrades:")
+
+            for idx, stat in enumerate(player.upgrades_purchased):
+                cost = (stat[1] + 1) ** 2
+                print(f"{idx}) {stat[0]}: Cost {cost} (currently {stat[1]} upgrades)")
+            print("Type stat number to buy or press ENTER to exit shop.")
+
+            choice = input("Buy which upgrade? ").strip()
+
+            if choice == "":
+                break
+
+            if not choice.isdigit() or not (0 <= int(choice) <= len(player.upgrades_purchased)):
+                print("Invalid choice. Try again.")
+                continue
+
+            choice = int(choice)
+            stat = player.upgrades_purchased[choice]
+            cost = (stat[1] + 1) ** 2
+            if player.gold >= cost:
+                player.gold -= cost
+                stat[1] += 1
+                self.upgrade_stat(player, stat)
+                print(f"Upgraded {choice}!")
+                break
+            else:
+                print("Not enough gold.")
 
     def apply_attacks(self, attacker: Player, moved: bool = True):
         damage = attacker.damage if moved else attacker.damage * 2
@@ -284,15 +322,15 @@ class Game:
                 break
 
     def upgrade_stat(self, player, stat_to_upgrade):
-        print("Upgrading " + stat_to_upgrade)
-        if stat_to_upgrade == 'max_health':
+        print("Upgrading " + stat_to_upgrade[0])
+        if stat_to_upgrade[0] == 'max_health':
             player.max_health *= 2
             player.health *= 2
-        elif stat_to_upgrade == 'damage':
+        elif stat_to_upgrade[0] == 'damage':
             player.damage *= 2
-        elif stat_to_upgrade == 'knockback_strength':
+        elif stat_to_upgrade[0] == 'knockback_strength':
             player.knockback_strength *= 2
-        elif stat_to_upgrade == 'knockback_resistance':
+        elif stat_to_upgrade[0] == 'knockback_resistance':
             if player.knockback_resistance > 0:
                 player.knockback_resistance *= 2
             else:
@@ -386,8 +424,8 @@ class Game:
                 if event.event_type == keyboard.KEY_DOWN:
                     key = event.name.lower()
                     if key in MOVEMENT_KEYS or key == SHOP_KEY:
-                        turn_over, moved = self.player_turn(current_player, key)
-            self.player_end_turn(current_player, moved)
+                        turn_over, moved, should_open_shop = self.player_turn(current_player, key)
+            self.player_end_turn(current_player, moved, should_open_shop)
 
         print("Game Over!")
         for p in self.players:
@@ -395,7 +433,7 @@ class Game:
                 print(f"{p.name} wins!")
 
     def render_all(self, current_player):
-        self.clear_screen()
+        #self.clear_screen()
         print(current_player.icon * BOARD_SIZE)
         self.draw_board()
         self.display_status()
@@ -407,8 +445,11 @@ class Game:
         print("Stay and deal extra damage and knockback with S.")
         print()
 
-    def player_end_turn(self, current_player, moved):
+    def player_end_turn(self, current_player, moved, should_open_shop):
         self.apply_attacks(current_player, moved = moved)
+        if should_open_shop:
+            self.open_shop(current_player)
+
         current_player.gold += current_player.gold_per_turn
         current_player.moves_used = 0
 
