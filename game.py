@@ -72,10 +72,10 @@ class Player:
     moves_used: int = 0
 
     upgrades_purchased: list = field(default_factory=lambda: [
-        ['max_health', 0],
-        ['damage', 0],
-        ['knockback_strength', 0],
-        ['knockback_resistance', 0]
+        {'name':'max_health',          "value": 0},
+        {'name':'damage',              "value": 0},
+        {'name':'knockback_strength',  "value": 0},
+        {'name':'knockback_resistance',"value": 0},
     ])
     
     def is_alive(self):
@@ -233,30 +233,31 @@ class Game:
             print("Available upgrades:")
 
             for idx, stat in enumerate(player.upgrades_purchased):
-                cost = (stat[1] + 1) ** 2
-                print(f"{idx}) {stat[0]}: Cost {cost} (currently {stat[1]} upgrades)")
-            print("Type stat number to buy or press ENTER to exit shop.")
+                cost = (stat["value"] + 1) ** 2
+                print(f"{idx}) {stat['name']}: Cost {cost} (currently {stat['value']} upgrades)")
+            print(f"Type stat number to buy or press {SHOP_KEY} again to exit shop.")
 
-            choice = input("Buy which upgrade? ").strip()
+            event = keyboard.read_event()
+            if event.event_type == keyboard.KEY_DOWN:
+                choice = event.name.lower()
 
-            if choice == "":
-                break
+                if choice == SHOP_KEY:
+                    break
 
-            if not choice.isdigit() or not (0 <= int(choice) <= len(player.upgrades_purchased)):
-                print("Invalid choice. Try again.")
-                continue
+                if not choice.isdigit() or not (0 <= int(choice) <= len(player.upgrades_purchased)):
+                    print("Invalid choice. Try again.")
+                    continue
 
-            choice = int(choice)
-            stat = player.upgrades_purchased[choice]
-            cost = (stat[1] + 1) ** 2
-            if player.gold >= cost:
-                player.gold -= cost
-                stat[1] += 1
-                self.upgrade_stat(player, stat)
-                print(f"Upgraded {choice}!")
-                break
-            else:
-                print("Not enough gold.")
+                choice = int(choice)
+                stat = player.upgrades_purchased[choice]
+                cost = (stat["value"] + 1) ** 2
+                if player.gold >= cost:
+                    player.gold -= cost
+                    stat["value"] += 1
+                    self.upgrade_stat(player, stat)
+                    print(f"Upgraded {choice}!")
+                else:
+                    print("Not enough gold.")
 
     def apply_attacks(self, attacker: Player, moved: bool = True):
         damage = attacker.damage if moved else attacker.damage * 2
@@ -322,15 +323,15 @@ class Game:
                 break
 
     def upgrade_stat(self, player, stat_to_upgrade):
-        print("Upgrading " + stat_to_upgrade[0])
-        if stat_to_upgrade[0] == 'max_health':
+        print("Upgrading " + stat_to_upgrade["name"])
+        if stat_to_upgrade["name"] == 'max_health':
             player.max_health *= 2
             player.health *= 2
-        elif stat_to_upgrade[0] == 'damage':
+        elif stat_to_upgrade["name"] == 'damage':
             player.damage *= 2
-        elif stat_to_upgrade[0] == 'knockback_strength':
+        elif stat_to_upgrade["name"] == 'knockback_strength':
             player.knockback_strength *= 2
-        elif stat_to_upgrade[0] == 'knockback_resistance':
+        elif stat_to_upgrade["name"] == 'knockback_resistance':
             if player.knockback_resistance > 0:
                 player.knockback_resistance *= 2
             else:
