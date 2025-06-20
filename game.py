@@ -299,6 +299,10 @@ class Game:
                 if is_clear_move(new_row, new_col, (current_row, current_col)):
                     defender.position = (new_row, new_col)
                     print(f"{defender.name} is pushed to {defender.position}")
+                    # pickup gold while being pushed
+                    if defender.position in self.gold_positions:
+                        defender.gold += defender.gold_from_pickup
+                        self.gold_positions.remove(defender.position)
                     continue
 
                 # Diagonal fallback resolution
@@ -314,6 +318,11 @@ class Game:
                     if options:
                         chosen = random.choice(options)
                         defender.position = chosen
+                        # pickup gold while being pushed
+                        if defender.position in self.gold_positions:
+                            defender.gold += defender.gold_from_pickup
+                            self.gold_positions.remove(defender.position)
+                            
                         print(f"{defender.name} is pushed to {defender.position} (random choice)")
                         delta_row = chosen[0] - current_row
                         delta_col = chosen[1] - current_col
