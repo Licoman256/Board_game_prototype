@@ -227,15 +227,22 @@ class Game:
             return False, False, False
 
     def open_shop(self, player):
+        GREEN = '\033[92m'
+        RED = '\033[91m'
+        YELLOW = '\033[93m'
+        RESET = '\033[0m'
+
         while True:
-            print(f"\n--- {player.name}'s Shop ---")
-            print(f"Gold: {player.gold}")
-            print("Available upgrades:")
+            print(f"\n{YELLOW}--- {player.name}'s Shop ---{RESET}")
+            print(f"{YELLOW}Gold:{RESET} {player.gold}")
+            print(f"{YELLOW}Available upgrades:{RESET}")
 
             for idx, stat in enumerate(player.upgrades_purchased):
                 cost = (stat["value"] + 1) ** 2
-                print(f"{idx}) {stat['name']}: Cost {cost} (currently {stat['value']} upgrades)")
-            print(f"Type stat number to buy or press {SHOP_KEY} again to exit shop.")
+                color = GREEN if player.gold >= cost else RED
+                print(f" {idx}) {stat['name']}: Cost {cost} ({color}{stat['value']} owned{RESET})")
+
+            print(f"\nType stat number to buy or press '{YELLOW}{SHOP_KEY}{RESET}' again to exit shop.")
 
             event = keyboard.read_event()
             if event.event_type == keyboard.KEY_DOWN:
@@ -244,20 +251,22 @@ class Game:
                 if choice == SHOP_KEY:
                     break
 
-                if not choice.isdigit() or not (0 <= int(choice) <= len(player.upgrades_purchased)):
-                    print("Invalid choice. Try again.")
+                if not choice.isdigit() or not (0 <= int(choice) < len(player.upgrades_purchased)):
+                    print(f"{RED}Invalid choice. Try again.{RESET}")
                     continue
 
                 choice = int(choice)
                 stat = player.upgrades_purchased[choice]
                 cost = (stat["value"] + 1) ** 2
+
                 if player.gold >= cost:
                     player.gold -= cost
                     stat["value"] += 1
                     self.upgrade_stat(player, stat)
-                    print(f"Upgraded {choice}!")
+                    print(f"{GREEN}Upgraded {stat['name']}!{RESET}")
                 else:
-                    print("Not enough gold.")
+                    print(f"{RED}Not enough gold.{RESET}")
+
 
     def apply_attacks(self, attacker: Player, moved: bool = True):
         damage = attacker.damage if moved else attacker.damage * 2
@@ -322,7 +331,7 @@ class Game:
                         if defender.position in self.gold_positions:
                             defender.gold += defender.gold_from_pickup
                             self.gold_positions.remove(defender.position)
-                            
+
                         print(f"{defender.name} is pushed to {defender.position} (random choice)")
                         delta_row = chosen[0] - current_row
                         delta_col = chosen[1] - current_col
@@ -388,15 +397,20 @@ class Game:
         os.system('cls' if os.name == 'nt' else 'clear')
 
     def display_status(self):
+        YELLOW = '\033[93m'
+        CYAN = '\033[96m'
+        GREEN = '\033[92m'
+        RESET = '\033[0m'
+
         for player in self.players:
-            print(f"--- {player.name} ---")
-            print(f"Health: {player.health} / {player.max_health}")
-            print(f"Damage: {player.damage}")
-            print(f"Knockback Strength: {player.knockback_strength}")
-            print(f"Knockback Resistance: {player.knockback_resistance}")
-            print(f"Position: {player.position}")
-            print(f"Gold: {player.gold}")
-            print()
+            print(f"{YELLOW}--- {player.name} ---{RESET}")
+            print(f"  {CYAN}Health:{RESET} {player.health} / {player.max_health}")
+            print(f"  {CYAN}Damage:{RESET} {player.damage}")
+            print(f"  {CYAN}Knockback Strength:{RESET} {player.knockback_strength}")
+            print(f"  {CYAN}Knockback Resistance:{RESET} {player.knockback_resistance}")
+            print(f"  {CYAN}Position:{RESET} {player.position}")
+            print(f"  {CYAN}Gold:{RESET} {GREEN}{player.gold}{RESET}\n")
+
 
     ### UTILS
 
